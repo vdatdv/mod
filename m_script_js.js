@@ -1,29 +1,40 @@
 
 /*
- * FISH MOD Z - Shadowrocket HTTP response script
- * Converted from the original JSON.
+ * FISH MOD Z - Shadowrocket
+ * HTTP Response Script
  */
 
 (function () {
   'use strict';
 
   function finishUnchanged(message) {
-    if (message) console.log('[FISH MOD Z] ' + message);
+    if (message) {
+      console.log('[FISH MOD Z] ' + message);
+    }
     $done({});
   }
 
-  var requestUrl = ($request && $request.url) || '';
+  var requestUrl =
+    (typeof $request !== 'undefined' && $request.url) || '';
+
   var parts = /^https?:\/\/([^\/?#]+)(\/[^?#]*)?/i.exec(requestUrl);
 
-  if (!parts) return finishUnchanged('Invalid request URL');
+  if (!parts) {
+    return finishUnchanged('Invalid request URL');
+  }
 
   var host = parts[1].replace(/:\d+$/, '').toLowerCase();
   var path = parts[2] || '/';
 
-  if (path.indexOf('/live') !== 0) return $done({});
+  if (path.indexOf('/live') !== 0) {
+    return finishUnchanged('Not a live endpoint');
+  }
 
-  if (!$response || typeof $response.body !== 'string') {
-    return finishUnchanged('Missing response text');
+  if (
+    typeof $response === 'undefined' ||
+    typeof $response.body !== 'string'
+  ) {
+    return finishUnchanged('Missing response body');
   }
 
   $httpClient.get(
@@ -44,9 +55,9 @@
           !Array.isArray(metadata.vh) ||
           metadata.vh.indexOf(host) === -1 ||
           typeof metadata.s_url !== 'string' ||
-          metadata.s_url.length === 0
+          !metadata.s_url
         ) {
-          return finishUnchanged('Host not authorized or metadata invalid');
+          return finishUnchanged('Invalid metadata or host');
         }
 
         var original = JSON.parse($response.body);
@@ -56,21 +67,21 @@
           typeof original !== 'object' ||
           Array.isArray(original)
         ) {
-          return finishUnchanged('Unexpected response body format');
+          return finishUnchanged('Invalid response JSON');
         }
 
         original.server_url = metadata.s_url;
 
-        console.log('[FISH MOD Z] server_url modified for ' + host);
+        console.log(
+          '[FISH MOD Z] server_url modified for ' + host
+        );
 
         $done({
           body: JSON.stringify(original)
         });
 
       } catch (e) {
-        return finishUnchanged(
-          'Cannot parse metadata/response JSON: ' + e.message
-        );
+        finishUnchanged('Error: ' + e.message);
       }
     }
   );
