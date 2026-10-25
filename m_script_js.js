@@ -1,44 +1,77 @@
-/
 
-* ASTUTE FF OB55 BY MOD SKIN FF - FISH MOD Z
+/*
+ * FISH MOD Z - Shadowrocket HTTP response script
+ * Converted from the original JSON.
+ */
 
-* Shadowrocket Script Runner (Surge / Loon / QuanX / SR compatible)
-  \*/
+(function () {
+  'use strict';
 
-async function main() {
-let response = \$response;
-let request = \$request;
+  function finishUnchanged(message) {
+    if (message) console.log('[FISH MOD Z] ' + message);
+    $done({});
+  }
 
-```
-// Phân tích URL và path
-let urlObj = new URL(request.url);
-if (!urlObj.pathname.startsWith('/live')) {
-    $done({ body: response.body });
-    return;
-}
+  var requestUrl = ($request && $request.url) || '';
+  var parts = /^https?:\/\/([^\/?#]+)(\/[^?#]*)?/i.exec(requestUrl);
 
-try {
-    let metaRes = await fetch('https://version.freefire.info/public/smeta');
-    let meta = await metaRes.json();
+  if (!parts) return finishUnchanged('Invalid request URL');
 
-    // Kiểm tra xem host có nằm trong danh sách vh hay không
-    if (!meta.vh || !meta.vh.includes(urlObj.host)) {
-        $done({ body: response.body });
-        return;
+  var host = parts[1].replace(/:\d+$/, '').toLowerCase();
+  var path = parts[2] || '/';
+
+  if (path.indexOf('/live') !== 0) return $done({});
+
+  if (!$response || typeof $response.body !== 'string') {
+    return finishUnchanged('Missing response text');
+  }
+
+  $httpClient.get(
+    {
+      url: 'https://version.freefire.info/public/smeta',
+      timeout: 5
+    },
+    function (error, response, body) {
+      if (error || !body) {
+        return finishUnchanged('Metadata request failed');
+      }
+
+      try {
+        var metadata = JSON.parse(body);
+
+        if (
+          !metadata ||
+          !Array.isArray(metadata.vh) ||
+          metadata.vh.indexOf(host) === -1 ||
+          typeof metadata.s_url !== 'string' ||
+          metadata.s_url.length === 0
+        ) {
+          return finishUnchanged('Host not authorized or metadata invalid');
+        }
+
+        var original = JSON.parse($response.body);
+
+        if (
+          !original ||
+          typeof original !== 'object' ||
+          Array.isArray(original)
+        ) {
+          return finishUnchanged('Unexpected response body format');
+        }
+
+        original.server_url = metadata.s_url;
+
+        console.log('[FISH MOD Z] server_url modified for ' + host);
+
+        $done({
+          body: JSON.stringify(original)
+        });
+
+      } catch (e) {
+        return finishUnchanged(
+          'Cannot parse metadata/response JSON: ' + e.message
+        );
+      }
     }
-
-    // Thay đổi trường server_url trong response JSON
-    let bodyJson = JSON.parse(response.body);
-    bodyJson.server_url = meta.s_url;
-
-    $done({ body: JSON.stringify(bodyJson) });
-} catch (err) {
-    // Nếu có lỗi mạng hoặc parse JSON, giữ nguyên response gốc
-    $done({ body: response.body });
-}
-
-```
-
-}
-
-main();
+  );
+})();
